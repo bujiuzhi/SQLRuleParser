@@ -1821,6 +1821,7 @@ BEGIN
       -- 131-债券基金、139-债券型QDII基金、231-债券型、239-债券型QDII
       AND t1.cplb IN ('131', '139', '231', '239')
       AND round(t1.qmsz1 * 100 / t1.qmsz2, 2) < 0.8*/
+
     ;
     COMMIT;
 END;

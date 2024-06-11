@@ -23,15 +23,15 @@ public class SQLParser {
         List<String> ruleBlocks = parseSQLFile(filePath);
 
         // 打印文件头
-        System.out.println("文件头:");
-        System.out.println(fileHeader);
+//        System.out.println("文件头:");
+//        System.out.println(fileHeader);
 
         // 打印解析后的规则块
         System.out.println("解析后的规则块:");
         List<RuleBlock> parsedBlocks = parseRuleBlocks(ruleBlocks);
-        for (RuleBlock block : parsedBlocks) {
-            System.out.println(block.toString());
-        }
+//        for (RuleBlock block : parsedBlocks) {
+//            System.out.println(block.toString());
+//        }
 
         // 打印规则数量和工作状态
         printRuleStats(parsedBlocks);
@@ -43,10 +43,10 @@ public class SQLParser {
         generateOutputFiles(filePath, updatedBlocks);
 
         // 打印文件尾部
-        if (fileTail != null) {
-            System.out.println("文件尾:");
-            System.out.println(fileTail);
-        }
+//        if (fileTail != null) {
+//            System.out.println("文件尾:");
+//            System.out.println(fileTail);
+//        }
     }
 
     public static List<String> parseSQLFile(String filePath) {
@@ -188,7 +188,7 @@ public class SQLParser {
         List<RuleBlock> updatedBlocks = new ArrayList<>();
         int expectedCode = 1;
 
-        System.out.println("检查规则代码:");
+        System.out.println("检查规则代码:\n。。。。。。。。。。");
         for (RuleBlock block : parsedBlocks) {
             String expectedRuleCode = String.format("AM%05d", expectedCode);
             String actualRuleCode = block.metadata.get("规则代码");
@@ -209,6 +209,7 @@ public class SQLParser {
             updatedBlocks.add(block);
             expectedCode++;
         }
+        System.out.println("规则代码检查完毕！");
 
         return updatedBlocks;
     }
