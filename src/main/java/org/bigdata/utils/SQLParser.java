@@ -39,6 +39,10 @@ public class SQLParser {
         // 检查规则代码
         List<RuleBlock> updatedBlocks = checkAndFixRuleCodes(parsedBlocks);
 
+        // 检查并修正目标接口传输时间
+        // 通过注释该行来启用/禁用此功能
+        updatedBlocks = checkAndFixTransmissionTime(updatedBlocks);
+
         // 生成输出文件
         generateOutputFiles(filePath, updatedBlocks);
 
@@ -214,6 +218,22 @@ public class SQLParser {
         return updatedBlocks;
     }
 
+    private static List<RuleBlock> checkAndFixTransmissionTime(List<RuleBlock> parsedBlocks) {
+        System.out.println("检查目标接口传输时间:\n。。。。。。。。。。");
+        for (RuleBlock block : parsedBlocks) {
+            String transmissionTime = block.metadata.get("目标接口传输时间");
+            if (transmissionTime != null && !transmissionTime.equals("T+1日24:00前")) {
+                String correctedSQL = block.sql.replace("v_pi_end_date_t1", "v_pi_end_date_t2");
+                if (!block.sql.equals(correctedSQL)) {
+                    System.out.println("修正目标接口传输时间错误, 规则代码: " + block.metadata.get("规则代码"));
+                    block.sql = correctedSQL;
+                }
+            }
+        }
+        System.out.println("目标接口传输时间检查完毕！");
+        return parsedBlocks;
+    }
+
     private static void generateOutputFiles(String inputFilePath, List<RuleBlock> updatedBlocks) {
         try {
             if (inputFilePath.contains("input")) {
@@ -236,6 +256,11 @@ public class SQLParser {
                 String outputExcelFilePath = inputFilePath.replace("input", "output").replace(".sql", "_metadata.xlsx");
                 try (Workbook workbook = new XSSFWorkbook()) {
                     Sheet sheet = workbook.createSheet("Metadata");
+
+                    // 设置列宽
+                    sheet.setColumnWidth(1, 256 * 20);
+                    sheet.setColumnWidth(4, 256 * 50);
+                    sheet.setColumnWidth(8, 256 * 30);
 
                     // 写入标题行
                     Row headerRow = sheet.createRow(0);
