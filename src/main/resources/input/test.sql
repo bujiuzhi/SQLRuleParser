@@ -10122,7 +10122,7 @@ BEGIN
     WHERE t1.jgdm = '70610000'
       AND t1.status NOT IN ('3', '5')
       AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
-      AND (t1.hgqx <= 0 OR t1.hgll <= 0) )
+      AND (t1.hgqx <= 0 OR t1.hgll <= 0)
 
     /*====================================================================================================
     # 规则代码: AM00318
@@ -14819,12 +14819,755 @@ BEGIN
     WHERE t1.jgdm = '70610000'
       AND t1.status NOT IN ('3', '5')
       AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
-      -- 资产类别: 101-股票
-      AND t2.zclb = '101'
       AND round(t1.sum_qmsz / t2.sum_qmsz, 4) < 0.8
 
     /*====================================================================================================
     # 规则代码: AM00459
+    # 目标接口: J1029-股票投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [产品基本信息].{产品类别}为“119-股票型QDII基金”、“219-股票型QDII”时，SUM（{期末市值}-{非流通股份市值}-{流通受限股份市值}-{其他流通受限股份市值}-{新发行股份市值}-{增发股份市值}）/SUM[QDII及FOF资产组合].{期末市值}>=80%
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 2
+    # 其他接口: J1002-产品基本信息 J1027-QDII及FOF资产组合
+    # 其他接口传输频度: 日 日
+    # 其他接口传输时间: T+1日24:00前 T+4日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00459'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz - tt1.fltgfsz - tt1.ltsxgfsz - tt1.qtltsxgfsz - tt1.xfxgfsz - tt1.zfgfsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_stock tt1
+                   LEFT JOIN report_cisp.wdb_amp_prod_baseinfo tt2
+                             ON tt1.jgdm = tt2.jgdm
+                                 AND tt1.status = tt2.status
+                                 AND tt1.sjrq = tt2.sjrq
+                                 AND tt1.cpdm = tt2.cpdm
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm
+          -- 产品类别:
+          --    公募基金: 119-股票型QDII基金
+          --    大集合: 219-股票型QDII
+          HAVING tt2.cplb IN ('111', '211')) t1
+             LEFT JOIN (SELECT tt3.jgdm
+                             , tt3.status
+                             , tt1.sjrq
+                             , tt1.cpdm
+                             , sum(tt1.qmsz) AS sum_qmsz
+                        FROM report_cisp.wdb_amp_inv_qd_assets tt3
+                        GROUP BY tt3.jgdm, tt3.status, tt3.sjrq, tt3.cpdm) t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND round(t1.sum_qmsz / t2.sum_qmsz, 4) < 0.8
+
+    /*====================================================================================================
+    # 规则代码: AM00460
+    # 目标接口: J1029-股票投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: {非流通股份数量}={流通受限股份数量}+{其他流通受限股份数量}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 0
+    # 其他接口:
+    # 其他接口传输频度:
+    # 其他接口传输时间:
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00460'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM report_cisp.wdb_amp_inv_stock t1
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND t1.fltgfsl <> t1.ltsxgfsl + t1.qtltsxgfsl
+
+    /*====================================================================================================
+    # 规则代码: AM00461
+    # 目标接口: J1029-股票投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: {非流通股份市值}={流通受限股份市值}+{其他流通受限股份市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 0
+    # 其他接口:
+    # 其他接口传输频度:
+    # 其他接口传输时间:
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00461'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM report_cisp.wdb_amp_inv_stock t1
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND t1.fltgfsz <> t1.ltsxgfsz + t1.qtltsxgfsz
+
+    /*====================================================================================================
+    # 规则代码: AM00462
+    # 目标接口: J1030-优先股投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: {期末数量}==上期[优先股投资明细].{期末数量}+{买入数量}-{卖出数量}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 0
+    # 其他接口:
+    # 其他接口传输频度:
+    # 其他接口传输时间:
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00462'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM report_cisp.wdb_amp_inv_prestock t1
+             LEFT JOIN report_cisp.wdb_amp_inv_prestock t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq =
+                               (SELECT max(tt1.sjrq) FROM report_cisp.wdb_amp_inv_prestock WHERE tt1.sjrq < t1.sjrq)
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND t1.qmsl <> t2.qmsl + t1.mrsl - t1.mcsl
+
+    /*====================================================================================================
+    # 规则代码: AM00463
+    # 目标接口: J1030-优先股投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [资产组合].{资产类别}为“102-优先股”的[资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1026-资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+1日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00463'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_prestock tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 102-优先股
+      AND t2.zclb = '102'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00464
+    # 目标接口: J1030-优先股投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [QDII及FOF资产组合].{资产类别}为“102-优先股”的[QDII及FOF资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1027-QDII及FOF资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+4日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00464'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_prestock tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_qd_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 102-优先股
+      AND t2.zclb = '102'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00465
+    # 目标接口: J1031-债券投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: {期末数量}==上期[债券投资明细].{期末数量}+{买入数量}-{卖出数量}
+    # 规则来源: AMTEC
+    # 风险等级: 0
+    # 其他接口数量: 0
+    # 其他接口:
+    # 其他接口传输频度:
+    # 其他接口传输时间:
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00465'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM report_cisp.wdb_amp_inv_bond t1
+             LEFT JOIN report_cisp.wdb_amp_inv_bond t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq =
+                               (SELECT max(tt1.sjrq) FROM report_cisp.wdb_amp_inv_bond WHERE tt1.sjrq < t1.sjrq)
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND t1.qmsl <> t2.qmsl + t1.mrsl - t1.mcsl
+
+    /*====================================================================================================
+    # 规则代码: AM00466
+    # 目标接口: J1031-债券投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [资产组合].{资产类别}为“103-债券”的[资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1026-资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+1日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00466'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_bond tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 103-债券
+      AND t2.zclb = '103'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00467
+    # 目标接口: J1031-债券投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [QDII及FOF资产组合].{资产类别}为“103-债券”的[QDII及FOF资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1027-QDII及FOF资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+4日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00467'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_bond tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_qd_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 103-债券
+      AND t2.zclb = '103'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00468
+    # 目标接口: J1031-债券投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [产品基本信息].{产品类别}为“131-债券基金”、“231-债券型”时，SUM{期末市值}/SUM[资产组合].{期末市值}>=80%
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 2
+    # 其他接口: J1002-产品基本信息 J1026-资产组合
+    # 其他接口传输频度: 日 日
+    # 其他接口传输时间: T+1日24:00前 T+1日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00468'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_bond tt1
+                   LEFT JOIN report_cisp.wdb_amp_prod_baseinfo tt2
+                             ON tt1.jgdm = tt2.jgdm
+                                 AND tt1.status = tt2.status
+                                 AND tt1.sjrq = tt2.sjrq
+                                 AND tt1.cpdm = tt2.cpdm
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm
+          -- 产品类别:
+          --    公募基金: 131-债券基金
+          --    大集合: 231-债券型
+          HAVING tt2.cplb IN ('131', '231')) t1
+             LEFT JOIN (SELECT tt3.jgdm
+                             , tt3.status
+                             , tt1.sjrq
+                             , tt1.cpdm
+                             , sum(tt1.qmsz) AS sum_qmsz
+                        FROM report_cisp.wdb_amp_inv_assets tt3
+                        GROUP BY tt3.jgdm, tt3.status, tt3.sjrq, tt3.cpdm) t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND round(t1.sum_qmsz / t2.sum_qmsz, 4) < 0.8
+
+    /*====================================================================================================
+    # 规则代码: AM00469
+    # 目标接口: J1031-债券投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [产品基本信息].{产品类别}为“139-债券型QDII基金”、“239-债券型QDII” 时，SUM{期末市值}/SUM[QDII及FOF资产组合].{期末市值}>=80%
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 2
+    # 其他接口: J1002-产品基本信息 J1027-QDII及FOF资产组合
+    # 其他接口传输频度: 日 日
+    # 其他接口传输时间: T+1日24:00前 T+4日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00469'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_bond tt1
+                   LEFT JOIN report_cisp.wdb_amp_prod_baseinfo tt2
+                             ON tt1.jgdm = tt2.jgdm
+                                 AND tt1.status = tt2.status
+                                 AND tt1.sjrq = tt2.sjrq
+                                 AND tt1.cpdm = tt2.cpdm
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm
+          -- 产品类别:
+          --    公募基金: 139-债券型QDII基金
+          --    大集合: 239-债券型QDII
+          HAVING tt2.cplb IN ('139', '239')) t1
+             LEFT JOIN (SELECT tt3.jgdm
+                             , tt3.status
+                             , tt1.sjrq
+                             , tt1.cpdm
+                             , sum(tt1.qmsz) AS sum_qmsz
+                        FROM report_cisp.wdb_amp_inv_qd_assets tt3
+                        GROUP BY tt3.jgdm, tt3.status, tt3.sjrq, tt3.cpdm) t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND round(t1.sum_qmsz / t2.sum_qmsz, 4) < 0.8
+
+    /*====================================================================================================
+    # 规则代码: AM00470
+    # 目标接口: J1032-标准化资管产品投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: {期末数量}==上期[标准化资管产品投资明细].{期末数量}+{买入数量}-{卖出数量}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 0
+    # 其他接口:
+    # 其他接口传输频度:
+    # 其他接口传输时间:
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00470'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM report_cisp.wdb_amp_inv_stdampp t1
+             LEFT JOIN report_cisp.wdb_amp_inv_stdampp t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq =
+                               (SELECT max(tt1.sjrq) FROM report_cisp.wdb_amp_inv_stdampp tt1 WHERE tt1.sjrq < t1.sjrq)
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND t1.qmsl = t2.qmsl + t1.mrsl - t2.mcsl
+
+    /*====================================================================================================
+    # 规则代码: AM00471
+    # 目标接口: J1032-标准化资管产品投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [资产组合].{资产类别}为“104-标准化资管产品”的[资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1026-资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+1日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00471'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_stdampp tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 104-标准化资管产品
+      AND t2.zclb = '104'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00472
+    # 目标接口: J1032-标准化资管产品投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [QDII及FOF资产组合].{资产类别}为“104-标准化资管产品”的[QDII及FOF资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1027-QDII及FOF资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+4日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00472'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_stdampp tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_qd_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 104-标准化资管产品
+      AND t2.zclb = '104'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00473
+    # 目标接口: J1033-定期存款投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [资产组合].{资产类别}为“106-银行定期存款”的[资产组合].{期末市值}==SUM{期末金额}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1026-资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+1日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00473'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_fixdepo tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 106-银行定期存款
+      AND t2.zclb = '106'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00474
+    # 目标接口: J1033-定期存款投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [QDII及FOF资产组合].{资产类别}为“106-银行定期存款”的[QDII及FOF资产组合].{期末市值}==SUM{期末金额}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1027-QDII及FOF资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+4日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00474'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_fixdepo tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_qd_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 106-银行定期存款
+      AND t2.zclb = '106'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00475
+    # 目标接口: J1035-同业存单投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: {期末数量}==上期[同业存单投资明细].{期末数量}+{买入数量}-{卖出数量}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 0
+    # 其他接口:
+    # 其他接口传输频度:
+    # 其他接口传输时间:
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00475'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM report_cisp.wdb_amp_inv_ncd t1
+             LEFT JOIN report_cisp.wdb_amp_inv_ncd t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq =
+                               (SELECT max(tt1.sjrq) FROM report_cisp.wdb_amp_inv_ncd tt1 WHERE tt1.sjrq < t1.sjrq)
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      AND t1.qmsl = t2.qmsl + t1.mrsl - t2.mcsl
+
+    /*====================================================================================================
+    # 规则代码: AM00476
+    # 目标接口: J1035-同业存单投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [资产组合].{资产类别}为“107-同业存单”的[资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1026-资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+1日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00476'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_ncd tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 107-同业存单
+      AND t2.zclb = '107'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00477
+    # 目标接口: J1035-同业存单投资明细
+    # 目标接口传输频度: 日
+    # 目标接口传输时间: T+4日24:00前
+    # 规则说明: [QDII及FOF资产组合].{资产类别}为“107-同业存单”的[QDII及FOF资产组合].{期末市值}==SUM{期末市值}
+    # 规则来源: 证监会-报送接口规范检查
+    # 风险等级: 0
+    # 其他接口数量: 1
+    # 其他接口: J1027-QDII及FOF资产组合
+    # 其他接口传输频度: 日
+    # 其他接口传输时间: T+4日24:00前
+    # 工作状态: 1
+    # 备注:
+    ====================================================================================================*/
+    UNION ALL
+    SELECT DISTINCT 'AM00477'   AS gzdm        -- 规则代码
+                  , t1.sjrq     AS sjrq        -- 数据日期
+                  , t1.cpdm     AS cpdm        -- 产品代码
+                  , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
+                  , 0           AS fxdj        -- 风险等级 0-严重 1-警告
+    FROM (SELECT tt1.jgdm
+               , tt1.status
+               , tt1.sjrq
+               , tt1.cpdm
+               , sum(tt1.qmsz) AS sum_qmsz
+          FROM report_cisp.wdb_amp_inv_ncd tt1
+          GROUP BY tt1.jgdm, tt1.status, tt1.sjrq, tt1.cpdm) t1
+             LEFT JOIN report_cisp.wdb_amp_inv_qd_assets t2
+                       ON t1.jgdm = t2.jgdm
+                           AND t1.status = t2.status
+                           AND t1.sjrq = t2.sjrq
+                           AND t1.cpdm = t2.cpdm
+    WHERE t1.jgdm = '70610000'
+      AND t1.status NOT IN ('3', '5')
+      AND t1.sjrq = v_pi_end_date_t2 --若测试，请注释本行
+      -- 资产类别: 107-同业存单
+      AND t2.zclb = '107'
+      AND t1.sum_qmsz <> t2.qmsz
+
+    /*====================================================================================================
+    # 规则代码: AM00478
     # 目标接口: J1005-产品投资比例限制
     # 目标接口传输频度: 日
     # 目标接口传输时间: T+1日24:00前
@@ -14839,7 +15582,7 @@ BEGIN
     # 备注: 样例
     ====================================================================================================*/
     /*UNION ALL
-    SELECT DISTINCT 'AM00459'   AS gzdm        -- 规则代码
+    SELECT DISTINCT 'AM00478'   AS gzdm        -- 规则代码
                   , t1.sjrq     AS sjrq        -- 数据日期
                   , t1.cpdm     AS cpdm        -- 产品代码
                   , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
@@ -14856,7 +15599,7 @@ BEGIN
       AND t2.cpdm IS NULL*/
 
     /*====================================================================================================
-    # 规则代码: AM00460
+    # 规则代码: AM00479
     # 目标接口: J1022-QDII及FOF份额汇总
     # 目标接口传输频度: 日
     # 目标接口传输时间: T+4日24:00前
@@ -14871,7 +15614,7 @@ BEGIN
     # 备注: 样例
     ====================================================================================================*/
     /*UNION ALL
-    SELECT DISTINCT 'AM00460'   AS gzdm        -- 规则代码
+    SELECT DISTINCT 'AM00479'   AS gzdm        -- 规则代码
                   , t2.sjrq     AS sjrq        -- 数据日期
                   , t2.cpdm     AS cpdm        -- 产品代码
                   , pi_end_date AS insert_time -- 插入时间，若测试，请注释本行
@@ -14895,7 +15638,6 @@ BEGIN
       AND t3.htyzzbz = '0'
       AND t3.zfs > 0
       AND t1.cpdm IS NULL*/
-
     ;
     COMMIT;
 END;

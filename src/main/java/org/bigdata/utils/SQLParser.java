@@ -19,7 +19,7 @@ public class SQLParser {
     private static String fileTail = null;
 
     public static void main(String[] args) {
-        String filePath = "src/main/resources/input/20240530.sql";
+        String filePath = "src/main/resources/input/test.sql";
         List<String> ruleBlocks = parseSQLFile(filePath);
 
         // 打印文件头
